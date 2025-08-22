@@ -58,8 +58,18 @@
     }
 
     function addMarker(place, defaultLabel) {
-      const name = place.tags.name ? place.tags.name : defaultLabel;
-      const info = `<b>${name}</b><br>Type: ${defaultLabel}`;
+      let label = defaultLabel;
+
+      // If place has tags
+      if (place.tags) {
+        if (place.tags.name) {
+          label = place.tags.name;
+        } else if (place.tags['addr:street']) {
+          label = defaultLabel + " near " + place.tags['addr:street'];
+        }
+      }
+
+      const info = `<b>${label}</b><br>ID: ${place.id}`;
       L.marker([place.lat, place.lon]).addTo(map).bindPopup(info);
     }
 
@@ -87,6 +97,9 @@
       fetch(overpassUrl)
         .then(res => res.json())
         .then(data => {
+          if (data.elements.length === 0) {
+            alert("No restaurants found nearby.");
+          }
           data.elements.forEach(place => addMarker(place, "Restaurant"));
         });
     }
@@ -99,6 +112,9 @@
       fetch(overpassUrl)
         .then(res => res.json())
         .then(data => {
+          if (data.elements.length === 0) {
+            alert("No landmarks found nearby.");
+          }
           data.elements.forEach(place => addMarker(place, "Landmark"));
         });
     }
