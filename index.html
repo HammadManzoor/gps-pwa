@@ -69,4 +69,58 @@
         }
       }
 
-      const os
+      const osmLink = `https://www.openstreetmap.org/node/${place.id}`;
+      const info = `<b>${label}</b><br>
+                    <a href="${osmLink}" target="_blank">View Details</a>`;
+
+      L.marker([place.lat, place.lon]).addTo(map).bindPopup(info);
+    }
+
+    function searchRestaurants() {
+      if (!window.currentLat || !window.currentLon) {
+        alert("Get your location first!");
+        return;
+      }
+      fetchRestaurants(window.currentLat, window.currentLon);
+    }
+
+    function searchLandmarks() {
+      if (!window.currentLat || !window.currentLon) {
+        alert("Get your location first!");
+        return;
+      }
+      fetchLandmarks(window.currentLat, window.currentLon);
+    }
+
+    function fetchRestaurants(lat, lon) {
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
+        node(around:1000,${lat},${lon})["amenity"="restaurant"];
+        out;`;
+
+      fetch(overpassUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.elements.length === 0) {
+            alert("No restaurants found nearby.");
+          }
+          data.elements.forEach(place => addMarker(place, "Restaurant"));
+        });
+    }
+
+    function fetchLandmarks(lat, lon) {
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
+        node(around:1500,${lat},${lon})["tourism"~"attraction|museum|gallery|monument"];
+        out;`;
+
+      fetch(overpassUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.elements.length === 0) {
+            alert("No landmarks found nearby.");
+          }
+          data.elements.forEach(place => addMarker(place, "Landmark"));
+        });
+    }
+  </script>
+</body>
+</html>
