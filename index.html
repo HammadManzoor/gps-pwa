@@ -1,63 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>AI Glasses GPS</title>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
+  <title>AI Glasses Prototype</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Manifest -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#2b2b2b">
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
   <style>
-    #map { height: 100vh; }
-    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 80vh; width: 100%; }
+    button { margin: 5px; padding: 10px; }
   </style>
 </head>
 <body>
+  <h2>AI Glasses Prototype</h2>
+  <button onclick="findNearby('restaurant')">Restaurants Near Me</button>
+  <button onclick="findNearby('landmark')">Landmarks Near Me</button>
   <div id="map"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
   <script>
+    let map, userMarker;
+
     // Initialize map
-    const map = L.map('map').setView([0, 0], 2);
+    function initMap(lat, lon) {
+      map = L.map("map").setView([lat, lon], 15);
 
-    // Load OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap"
+      }).addTo(map);
 
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-
-          map.setView([lat, lon], 15);
-
-          L.marker([lat, lon]).addTo(map)
-            .bindPopup("You are here")
-            .openPopup();
-        },
-        (error) => {
-          alert("Error getting location: " + error.message);
-        }
-      );
-    } else {
-      alert("Geolocation not supported in this browser.");
+      userMarker = L.marker([lat, lon]).addTo(map)
+        .bindPopup("You are here").openPopup();
     }
 
-    // Register Service Worker
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js")
-        .then(() => console.log("Service Worker registered"))
-        .catch(err => console.log("SW error", err));
+    // Get user location
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      initMap(lat, lon);
+    }, err => {
+      alert("Location access denied or unavailable.");
+    });
+
+    // Fetch nearby places from Overpass API
+    function findNearby(type) {
+      if (!map) return;
+
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        // Overpass query
+        let query = `[out:json];`;
+        if (type === "restaurant") {
+          query += `node(around:1000,${lat},${lon})["amenity"="restaurant"];`;
+        } else if (type === "landmark") {
+          query += `node(around:1000,${lat},${lon})["tourism"="attraction"];`;
+        }
+        query += `out;`;
+
+        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+
+        fetch(url)
+          .then(res => res.json())
+          .then(data => {
+            data.elements.forEach(place => {
+              L.marker([place.lat, place.lon]).addTo(map)
+                .bindPopup(place.tags.name || (type === "restaurant" ? "Restaurant" : "Landmark"));
+            });
+          })
+          .catch(() => alert("Error fetching data from Overpass API"));
+      });
     }
   </script>
 </body>
