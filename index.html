@@ -1,79 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Glasses Prototype</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
+  <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
     #map { height: 80vh; width: 100%; }
-    button { margin: 5px; padding: 10px; }
+    #menu { padding: 10px; background: #f8f8f8; text-align: center; }
+    button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; background: #007bff; color: white; cursor: pointer; }
+    button:hover { background: #0056b3; }
   </style>
 </head>
 <body>
-  <h2>AI Glasses Prototype</h2>
-  <button onclick="findNearby('restaurant')">Restaurants Near Me</button>
-  <button onclick="findNearby('landmark')">Landmarks Near Me</button>
+  <div id="menu">
+    <button onclick="getLocation()">📍 Get My Location</button>
+    <button onclick="searchRestaurants()">🍴 Restaurants Near Me</button>
+    <button onclick="searchLandmarks()">🏛️ Landmarks Near Me</button>
+  </div>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map, userMarker;
+    var map = L.map('map').setView([0, 0], 13);
 
-    // Initialize map
-    function initMap(lat, lon) {
-      map = L.map("map").setView([lat, lon], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "© OpenStreetMap"
-      }).addTo(map);
+    var userMarker;
 
-      userMarker = L.marker([lat, lon]).addTo(map)
-        .bindPopup("You are here").openPopup();
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError);
+      } else {
+        alert("Geolocation is not supported by this browser.");
+      }
     }
 
-    // Get user location
-    navigator.geolocation.getCurrentPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      initMap(lat, lon);
-    }, err => {
-      alert("Location access denied or unavailable.");
-    });
+    function showPosition(position) {
+      var lat = position.coords.latitude;
+      var lon = position.coords.longitude;
+      map.setView([lat, lon], 15);
 
-    // Fetch nearby places from Overpass API
-    function findNearby(type) {
-      if (!map) return;
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
 
-      navigator.geolocation.getCurrentPosition(pos => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
+      // Save coordinates for restaurant/landmark search
+      window.currentLat = lat;
+      window.currentLon = lon;
+    }
 
-        // Overpass query
-        let query = `[out:json];`;
-        if (type === "restaurant") {
-          query += `node(around:1000,${lat},${lon})["amenity"="restaurant"];`;
-        } else if (type === "landmark") {
-          query += `node(around:1000,${lat},${lon})["tourism"="attraction"];`;
-        }
-        query += `out;`;
+    function showError(error) {
+      alert("Error getting location: " + error.message);
+    }
 
-        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+    function addMarker(place, defaultLabel) {
+      const name = place.tags.name ? place.tags.name : defaultLabel;
+      const info = `<b>${name}</b><br>Type: ${defaultLabel}`;
+      L.marker([place.lat, place.lon]).addTo(map).bindPopup(info);
+    }
 
-        fetch(url)
-          .then(res => res.json())
-          .then(data => {
-            data.elements.forEach(place => {
-              L.marker([place.lat, place.lon]).addTo(map)
-                .bindPopup(place.tags.name || (type === "restaurant" ? "Restaurant" : "Landmark"));
-            });
-          })
-          .catch(() => alert("Error fetching data from Overpass API"));
-      });
+    function searchRestaurants() {
+      if (!window.currentLat || !window.currentLon) {
+        alert("Get your location first!");
+        return;
+      }
+      fetchRestaurants(window.currentLat, window.currentLon);
+    }
+
+    function searchLandmarks() {
+      if (!window.currentLat || !window.currentLon) {
+        alert("Get your location first!");
+        return;
+      }
+      fetchLandmarks(window.currentLat, window.currentLon);
+    }
+
+    function fetchRestaurants(lat, lon) {
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
+        node(around:1000,${lat},${lon})["amenity"="restaurant"];
+        out;`;
+
+      fetch(overpassUrl)
+        .then(res => res.json())
+        .then(data => {
+          data.elements.forEach(place => addMarker(place, "Restaurant"));
+        });
+    }
+
+    function fetchLandmarks(lat, lon) {
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
+        node(around:1500,${lat},${lon})["tourism"~"attraction|museum|gallery|monument"];
+        out;`;
+
+      fetch(overpassUrl)
+        .then(res => res.json())
+        .then(data => {
+          data.elements.forEach(place => addMarker(place, "Landmark"));
+        });
     }
   </script>
 </body>
